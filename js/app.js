@@ -19,6 +19,15 @@
   const shuffle = a => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.random() * (i + 1) | 0; [a[i], a[j]] = [a[j], a[i]]; } return a; };
   const pick = a => a[Math.random() * a.length | 0];
   const zy = text => `<span class="zytext">${Zhuyin.toHTML(S.z.annotate(text))}</span>`;
+  // 題目提示用：把答案（成語本身）遮成 ○○○○，避免提示直接洩漏答案
+  const zyHide = (text, word) => {
+    const toks = S.z.annotate(text);
+    const plain = toks.map(t => t.ch).join('');
+    for (let at = plain.indexOf(word); at >= 0; at = plain.indexOf(word, at + word.length)) {
+      for (let k = at; k < at + word.length; k++) toks[k] = { ch: '○', zy: null };
+    }
+    return `<span class="zytext">${Zhuyin.toHTML(toks)}</span>`;
+  };
   const tokens = text => S.z.annotate(text);
 
   function loadJSON(key, fallback) {
@@ -279,7 +288,7 @@
           <div class="q-title">${zy('少了哪一個字？')}</div>
           <div class="card"><div class="big-word">${it.emoji || ''}</div>
             <div class="big-word">${html}</div>
-            <div class="hint">${zy('提示：' + (it.short || it.meaning))}</div></div>
+            <div class="hint">${zyHide('提示：' + (it.short || it.meaning), it.word)}</div></div>
           <div class="options">${opts.map((o, k) => `<button class="opt big" data-k="${k}">${charHTML(o)}</button>`).join('')}</div>
           <div class="feedback" id="fb"></div>`;
         bindOptions(host, opts, ans, ok => {
@@ -295,7 +304,7 @@
         const opts = shuffle([it, ...distractors(it, 3)]);
         host.innerHTML = `
           <div class="q-title">${zy('哪一個成語是這個意思？')}</div>
-          <div class="card question">${zy(it.meaning)}</div>
+          <div class="card question">${zyHide(it.meaning, it.word)}</div>
           <div class="options">${opts.map((o, k) => `<button class="opt" data-k="${k}">${idiomHTML(o)}</button>`).join('')}</div>
           <div class="feedback" id="fb"></div>`;
         bindOptions(host, opts, it, ok => done(ok));
@@ -312,7 +321,7 @@
         host.innerHTML = `
           <div class="q-title">${zy('照順序點字，排出正確的成語')}</div>
           <div class="card center"><div class="big-word">${it.emoji || ''}</div>
-            <div>${zy(it.short || it.meaning)}</div>
+            <div>${zyHide(it.short || it.meaning, it.word)}</div>
             <div class="slots">${toks.map((_, k) => `<div class="slot" data-s="${k}"></div>`).join('')}</div>
             <div class="pool">${order.map(k => `<button class="piece" data-p="${k}">${charHTML(toks[k])}</button>`).join('')}</div>
           </div>
@@ -440,7 +449,7 @@
       <div class="q-title">${zy('先點成語，再點它的意思')}</div>
       <div class="match">
         <div class="col">${left.map(it => `<button class="mitem" data-w="${esc(it.word)}">${idiomHTML(it)}</button>`).join('')}</div>
-        <div class="col">${right.map(it => `<button class="mitem meaning" data-m="${esc(it.word)}">${zy(it.short || it.meaning)}</button>`).join('')}</div>
+        <div class="col">${right.map(it => `<button class="mitem meaning" data-m="${esc(it.word)}">${zyHide(it.short || it.meaning, it.word)}</button>`).join('')}</div>
       </div>
       <div class="feedback" id="fb"></div>`;
     const L = [...$app.querySelectorAll('[data-w]')], R = [...$app.querySelectorAll('[data-m]')];

@@ -37,6 +37,8 @@ PHRASE_FIX = {
     '認為': 'ㄖㄣˋ ㄨㄟˊ',
     '作為': 'ㄗㄨㄛˋ ㄨㄟˊ',
     '行為': 'ㄒㄧㄥˊ ㄨㄟˊ',
+    '不是': 'ㄅㄨˋ ㄕˋ',
+    '去年': 'ㄑㄩˋ ㄋㄧㄢˊ',
 }
 
 # 容易跨詞誤判、不收錄的詞
@@ -56,6 +58,15 @@ def clean(b):
 def main(src, out):
     d = json.load(open(src, encoding='utf-8'))
     chars, phrases = {}, {}
+    variants = {}  # 異體字 → 標準字（例如 唇 → 脣），異體字沒有標注音
+    for e in d:
+        t = e['title']
+        if len(t) == 1 and '{' not in t and e['heteronyms'] and not e['heteronyms'][0].get('bopomofo'):
+            for x in e['heteronyms'][0].get('definitions', []):
+                m = re.match(r'^「(.)」的異體字', x.get('def', ''))
+                if m:
+                    variants[t] = m.group(1)
+                    break
     for e in d:
         t = e['title']
         if '{' in t:
@@ -74,6 +85,26 @@ def main(src, out):
             syl = hs[0].split()
             if len(syl) == len(t):
                 phrases[t] = syl
+
+    # 異體字預設讀音跟標準字一樣，例如「唇」唸ㄔㄨㄣˊ而不是ㄓㄣ
+    changed = []
+    for v, std in variants.items():
+        if std in chars:
+            old = chars.get(v, [])
+            new = chars[std] + [x for x in old if x not in chars[std]]
+            if old[:1] != new[:1]:
+                changed.append(f'{v}:{old[:1]}→{new[0]}')
+            chars[v] = new
+    print(f'異體字修正 {len(changed)} 個，例如：', ' '.join(changed[:15]))
+    # 詞語裡的標準字換成異體字也要能比對（例如 脣亡齒寒 → 唇亡齒寒）
+    std2var = {}
+    for v, std in variants.items():
+        std2var.setdefault(std, []).append(v)
+    for t, syl in list(phrases.items()):
+        for i, c in enumerate(t):
+            for v in std2var.get(c, []):
+                vt = t[:i] + v + t[i + 1:]
+                phrases.setdefault(vt, syl)
 
     for ch, r in DEFAULTS.items():
         if ch in chars:
